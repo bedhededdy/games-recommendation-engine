@@ -1,0 +1,6 @@
+**/__pycache__
+*.pickle
+id.txt
+key.txt
+node_modules/
+db.sqlite3
