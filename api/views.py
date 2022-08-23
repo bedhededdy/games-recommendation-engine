@@ -132,19 +132,21 @@ def get_user_recs(steamid):
     lib = None
     try:
         err = None
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         lib = get_user_library(steamid)
     except FileNotFoundError:
-        err = {'Error': 'Unable to locate API key'}
+        err = 'Error: Unable to locate API key'
     except KeyError:
-        err = {'Error': 'API call did not return a response'}
+        err = 'Error: API call did not return a response'
     except JSONDecodeError:
-        err = {'Error': 'API call did not return in JSON format'}
+        err = 'Error: The SteamID you entered is invalid'
+        status_code = status.HTTP_400_BAD_REQUEST
     except RequestException as e:
-        err = {'Error': e.strerror}
+        err = f'Error: {e.strerror}'
     finally:
         if err:
             print(err)
-            return Response(err, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(err, status=status_code)
 
     # Load some prerequisite data from disk
     games_dict = None
@@ -152,9 +154,9 @@ def get_user_recs(steamid):
         err = None
         games_dict = load_games_dict()
     except FileNotFoundError:
-        err = {'Error': 'Could not locate games list'}        
+        err = 'Error: Could not locate games list'
     except pickle.UnpicklingError:
-        err = {'Error': 'Could not load games list'}
+        err = 'Error: Could not load games list'
     finally:
         if err:
             print(err)
@@ -165,7 +167,7 @@ def get_user_recs(steamid):
         existing_data = load_existing_data(games_dict, 'api/recdata_new.csv')
     except Exception as e:
         print(e)
-        return Response({'Error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(f'Error: {str(e)}', status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # TODO: GET THE UID FROM LAST LINE OF INTERACTIONS OR CHANGE IT TO BE THE STEAMID
     uid = generate_uid()
@@ -176,8 +178,7 @@ def get_user_recs(steamid):
         new_data = load_user_data(uid, games_dict, lib)
     except Exception as e:
         print(e)
-        return Response({'Error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        return Response(f'Error: {str(e)}', status=status.HTTP_500_INTERNAL_SERVER_ERROR)
    
     dataset = None
     my_items = None
@@ -203,7 +204,7 @@ def get_user_recs(steamid):
     except Exception as e:
         # NOTE: LIGHTFM DOCS ARE CRAP ABT WHAT ERRORS CAN BE THROWN SO THIS IS A CRAPSHOOT
         print(e)
-        return Response({'Error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(f'Error: {str(e)}', status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     embeddings = solver.item_embeddings
 
@@ -225,8 +226,8 @@ def get_user_recs(steamid):
         scores = list(pd.Series(return_score_list).apply(lambda x: games_dict[str(x)]))
     except Exception as e:
         print(e)
-        return Response({'Error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        return Response(f'Error: {str(e)}', status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
     return JsonResponse({'games': scores}, status=status.HTTP_200_OK)
 
 # Create your views here.
@@ -242,13 +243,14 @@ class LoginView(APIView):
         two_factor = request.data.get('twoFactorAuth')
 
         if username and pwd:
-            # TODO: ERROR HANDLING
-            usr = wa.WebAuth(username)
-            usr.login(pwd, twofactor_code=two_factor)
-            steamid = usr.steam_id
+            try:
+                usr = wa.WebAuth(username)
+                usr.login(pwd, twofactor_code=two_factor)
+                steamid = usr.steam_id
+            except wa.LoginIncorrect:
+                return Response('Error: You have misentered your login information', status=status.HTTP_400_BAD_REQUEST)
         else:
-            # FIXME: MAYBE THIS SHOULD BE A JSON RESPOSNE
-            return Response({'Bad Request': 'Incomplete fields'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response('Error: Incomplete fields', status=status.HTTP_400_BAD_REQUEST)
 
         return get_user_recs(steamid)
 
@@ -260,12 +262,4 @@ class ValidateView(APIView):
             session.create()
 
         steamid = request.data.get('steamID')
-        if self.valid(steamid):
-            return get_user_recs(steamid)
-        else:
-            return Response({'Bad Request': 'Invalid ID'}, status=status.HTTP_400_BAD_REQUEST)
-
-    def valid(self, steamID):
-        # FIXME: THE PROFILE NOT FOUND PAGE STILL RETURNS A 200 SO THIS DOESN'T WORK
-        return requests.get(f'https://steamcommunity.com/profiles/{steamID}').status_code == 200 
-        
+        return get_user_recs(steamid)

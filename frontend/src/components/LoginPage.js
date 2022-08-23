@@ -34,7 +34,6 @@ export default function LoginPage(props) {
         // Else we need to authenticate the username and password to get the user's steamID
         let usrLib = null;
 
-        // FIXME: WE NEED TO WAIT FOR THIS SHIT TO FINISH BEFORE TRYING TO SAVE THE USERLIB
         if (steamID !== '') {
             const requestOptions = {
                 method: "POST",
@@ -48,10 +47,11 @@ export default function LoginPage(props) {
                     console.log('ID validated');
                     return response.json();
                 }
-                else
-                    console.log('Invalid ID');
+                else {
+                    throw response;
+                }
             }).then(data => usrLib = data)
-            .catch(myError => console.log(myError));
+            .catch(myError => myError.text().then(err => alert(err)));
         } else {
             const requestOptions = {
                 method: "POST",
@@ -66,9 +66,9 @@ export default function LoginPage(props) {
                     return response.json();
                 }
                 else
-                    console.log('Login failed');
+                    throw response;
             }).then(data => usrLib = data)
-            .catch(myError => console.log(myError));
+            .catch(myError => myError.text().then(err => alert(err)));
         }
 
         let games = usrLib.games;
