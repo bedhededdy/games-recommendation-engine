@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import {Grid, Button, Typography, TextField} from "@material-ui/core";
+import { Grid, Button, Typography, TextField } from "@material-ui/core";
 
 export default function LoginPage(props) {
     /* The login page will either take a username and password which we can use
@@ -71,6 +70,8 @@ export default function LoginPage(props) {
             .catch(myError => myError.text().then(err => alert(err)));
         }
 
+        // Waits for the fetch to finish before doing this
+        // TODO: RENDER THE GAMES IN A GRAPHICAL WAY AS OPPOSED TO LOGGING THEM
         let games = usrLib.games;
         console.log('games: ' + games.toString());
     }

@@ -1,18 +1,11 @@
-import React, { Component } from 'react';
-import { render } from 'react-dom';
+import React from 'react';
+import ReactDOM from 'react-dom'; // FIXME: THIS IS DEPRECATED, FIGURE OUT THE CORRECT WAY
 import LoginPage from './LoginPage';
 
-// Don't know how to do this with func component, but this is just a dummy anyway
-// so it's fine that it's a class
-export default class App extends Component {
-    constructor(props) {
-        super(props);
-    }
-
-    render() {
-        return <LoginPage />
-    }
+// Renders this content in the app div in index.html
+export default function App(props) {
+    return <LoginPage />
 }
 
 const appDiv = document.getElementById('app');
-render(<App />, appDiv);
+ReactDOM.render(<App />, appDiv);
