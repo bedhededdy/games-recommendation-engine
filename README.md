@@ -15,6 +15,7 @@ I will fill this in at a later date
 I will fill this in at a later date
 
 ## Directory Structure
+```
 ├── LICENSE
 ├── README.md
 ├── admin
@@ -73,8 +74,10 @@ I will fill this in at a later date
 │   ├── settings.py
 │   ├── urls.py
 │   └── wsgi.py
+```
 
 ### Explanation of Files/Directories
+```
 Note: Some files/directories will be created when you install the project that are not listed or explained here.
       Some files are also listed in the directory tree that you need to create yourself, but are not included in
       this repository (e.g. a file containing your Steam API key, etc.)
@@ -174,6 +177,7 @@ LICENSE
     Contains the licensing information for this project
 README.md
     Contains the README for this project
+```
         
 ## License
 This project is licensed under the GPLv3
