@@ -10,6 +10,8 @@ export default function LoginPage(props) {
     const [steamID, setSteamID] = useState('');
     const [twoFactorAuth, setTwoFactorAuth] = useState('');
 
+    const [btnDisabled, setBtnDisabled] = useState(false);
+    // NOTE: UNUSED
     const [error, setError] = useState('');
 
     const handleUsernameTextFieldChange = (e) => {
@@ -29,10 +31,12 @@ export default function LoginPage(props) {
     }
 
     const handleLoginButtonPressed = async () => {
+        // Prevent user from overloading us with requests
+        setBtnDisabled(true);
+        
         // If the user entered a steamID we will just send that to the backend 
         // Else we need to authenticate the username and password to get the user's steamID
         let usrLib = null;
-
         if (steamID !== '') {
             const requestOptions = {
                 method: "POST",
@@ -74,6 +78,9 @@ export default function LoginPage(props) {
         // TODO: RENDER THE GAMES IN A GRAPHICAL WAY AS OPPOSED TO LOGGING THEM
         let games = usrLib.games;
         console.log('games: ' + games.toString());
+
+        // Reenable button
+        setBtnDisabled(false);
     }
     
     return (
@@ -125,7 +132,7 @@ export default function LoginPage(props) {
                 onChange={handleSteamIDTextFieldChange} />
             </Grid>
             <Grid item xs={12}>
-                <Button variant='contained' color='primary' onClick={handleLoginButtonPressed}>
+                <Button disabled={btnDisabled} variant='contained' color='primary' onClick={handleLoginButtonPressed}>
                     Login
                 </Button>
             </Grid>
