@@ -1,22 +1,36 @@
-# TODO: ADD MUCH MORE ERROR HANDLING
-# TODO: MAYBE ADD REQUIRED AGE AND RELEASE YEAR TO THE DATABASE
-import sys
+# TODO: TIDY THIS FILE UP, IT'S A MESS OF UNUSED FUNCTIONS AND DUPLICATED FUNCTIONALITY AS WELL AS STUFF UNRELATED TO DB
 import json
-import time
-import requests
 import subprocess
-import steamcharts
 import csv
+import os
+
+import psycopg2
+import psycopg2.errors
 import spider
 from scrapy.crawler import CrawlerProcess
 from bs4 import BeautifulSoup
-import psycopg2
-import psycopg2.errors
-import pandas as pd
-import os
 
-# connect to database
 def connect(name, usr, pwd, my_host, my_port):
+    '''Connect to postgres db
+    
+    Parameters
+    ----------
+    name : str
+        database name
+    usr : str
+        username
+    pwd : str
+        password
+    my_host : str
+        ip_addr to connect to database on
+    my_port : int
+        port to connect to database on
+
+    Returns
+    -------
+    psycopg2.connection
+        connection to the postgres db 
+    '''
     connection = None
     try:
         connection = psycopg2.connect(database=name, user=usr, password=pwd, host=my_host, port=my_port)
@@ -25,8 +39,26 @@ def connect(name, usr, pwd, my_host, my_port):
         print('Error connecting')
     return connection
 
-# run sql query
 def execute_query(connection, query, fetch=False):
+    '''Executes query on db connection and returns results if fetch is True
+    
+    Parameters
+    ----------
+    connection : psycopg2.connection
+        connection to the postgres db
+    query : str
+        sql query to execute
+    fetch : bool, optional
+        tells whether or not to return results of the query
+
+    Returns
+    -------
+    object
+        results of the sql query
+    None
+        if fetch is false
+    '''
+    # TODO: ADD ERROR HANDLING
     cursor = connection.cursor()
     cursor.execute(query)
     connection.commit()
@@ -34,33 +66,29 @@ def execute_query(connection, query, fetch=False):
     if fetch:
         return cursor.fetchall()
 
-def csv_dump(connection):
-    cursor = connection.cursor()
-    try:
-        query = '''select appid, game_name, price, sale_price, string_agg(distinct(developer_name), ',') as developers, string_agg(distinct(publisher_name), ',') as publishers, string_agg(distinct(tag_name), ',') as tags, string_agg(distinct(genre_name), ',') as genres from games natural join developers natural join tags natural join genres natural join publishers group by appid order by cast(appid as int);'''
-        cursor.execute(query)
-        connection.commit()
-    except psycopg2.errors.Error as e:
-        print('fetch error')
-        sys.exit(0)
-
-# crawls steamcharts website to pull the first 300 pages (7500 games) which takes about 13 seconds
-# not our fault that it's so slow, the site just has poor response time
 def scrape_store_page():
+    '''Runs the spider that scrapes the steamcharts site'''
+    # TODO: FIGURE OUT HOW TO RUN TWO OF THE SCRAPYS THE NORMAL WAY INSTEAD OF HAVING TO RUN ONE IN SUBPROCESS
+    #       BECAUSE OF TWISTER ERRORS
     subprocess.run('scrapy runspider steamcharts.py --nolog')
 
 def get_all_games():
+    '''gets all games in the existing dataset
+    
+    Returns
+    -------
+    set
+        set of appids of all games in the existing dataset
+
+    Raises
+    ------
+    FileNotFoundError
+        occurs if we can't find the dataset file
+    '''
+    # Get unique appid from existing dataset
     st = set()
     fst = True
-    #with open('recdata_new.csv') as f:
-    #    foo = csv.reader(f, delimiter=',')
-    #    for row in foo:
-    #        if fst:
-    #            fst = False
-    #        else:
-    #            st.add(row[2])
-    fst = True
-    with open('recdata.csv', 'r') as f:
+    with open('api/recdata_new.csv') as f:
         foo = csv.reader(f, delimiter=',')
         for row in foo:
             if fst:
@@ -69,42 +97,77 @@ def get_all_games():
                 st.add(row[2])
     return st
 
-# updates database with only new entries to it
 def update_db(connection):
-    # get everything in db
+    '''Updates database with all of the games in our training dataset not in our database
+    
+    Parameters
+    ----------
+    connection : psycopg2.connection
+        connection to the database
+    '''    
+
+    # put everything from the existing dataset that we haven't put in the db into the db
     curr_games = set([x[0] for x in execute_query(connection, 'select appid from games', fetch=True)])
     all_games = set(get_all_games())
     appids = all_games.difference(curr_games)
     get_app_details(appids)
     put_in_db(connection, appids)
 
-# completely refreshes the database
 def rebuild_db(connection):
+    '''Wipes database and refreshes it from scratch
+    
+    Parameters
+    ----------
+    connection : psycopg2.connection
+        connection to database
+    '''
+    # TODO: IMPLEMENT FUNCTIONALITY
     pass 
 
-# extracts the appid of the top 7500 games on steam
 def get_top_games():
+    '''Gets the appids from the steamcharts HTML files we scraped
+
+    Returns
+    -------
+    list
+        the top 7500 games on steam
+
+    Raises
+    ------
+    FileNotFoundError
+        can't find the file for a webpage we should have downloaded
+    '''
     appids = []
     # gets top 300 pages 
     for i in range(1, 301):
         with open(f'eachgame/{i}.html', encoding='utf8') as f:
+            # The appid is located in an <a> tag nested in a <td> tag
             soup = BeautifulSoup(f, 'html.parser')
             for link in soup.find_all('td', class_='game-name left'):
                 link = link.find('a')
-                if link['href'].split('/')[-1] == '550' or link['href'].split('/')[-1] == '400':
-                    print('left4dead')
                 appids.append(link['href'].split('/')[-1])
-
     return appids
 
-# gets the app details for the top 7500 games on steam
 def get_app_details(appids):
+    '''Gets the app details for the given appids
+    
+    Parameters
+    ----------
+    appids : list of str
+        list of appids to get app details for
+    '''
     proc = CrawlerProcess()
     proc.crawl(spider.Scraper, appids)
     proc.start()
 
 def init_db(connection):
-    # TODO: ADD SENTIMENT AND EARLY ACCESS
+    '''Creates the database
+    
+    Parameters
+    ----------
+    connection : psycopg2.connection
+        connection to postgres db
+    '''
     games_attrs = '''appid VARCHAR(7) PRIMARY KEY,
     game_name VARCHAR(256),
     price DECIMAL(6,2),
@@ -135,10 +198,26 @@ def init_db(connection):
     execute_query(connection, f'CREATE TABLE IF NOT EXISTS developers({developers_attrs})')
     
 def put_in_db(connection, appids):
+    '''Puts the app details for the given appids into the database
+    
+    Parameters
+    ----------
+    connection : psycopg2.connection
+        connection to database
+    appids : list of str
+        list of appids of games to put in the database
+    '''
+    # TODO: ADD ERROR HANDLING
     for appid in appids:
         try:
+            # FIXME: THIS WON'T WORK ANYMORE
             with open(f'tmp/{appid}.json', encoding='utf8') as f:
                 game = json.loads(f.read())[appid]
+
+            # Load db info in case of necessary reconnect
+            db_name = usr = pwd = host = port = None
+            with open('db_info.txt', 'r') as f:
+                db_name, usr, pwd, host, port = f.readlines()
 
                 # some games don't have details in the steam api and return a failure state when we try to get them
                 if game['success']:
@@ -147,6 +226,8 @@ def put_in_db(connection, appids):
                     # some entries are demos, DLC, mods, etc. so we don't wish to include them
                     if data['type'] != 'game':
                         continue
+
+                    # Extract the data
                     game_name = data['name'].replace("'", "''") # escapes apostrophe in games like "Assassin's Creed"
                     publishers = data['publishers']
                     #early_access = data['early_access']
@@ -212,56 +293,23 @@ def put_in_db(connection, appids):
         except psycopg2.errors.Error as e:
             print(f'Error: {e}')
             print(f'Game: {appid}')
-            connection = connect('steam', 'postgres', '$Jackface1!', '127.0.0.1', '5432')
-
-def load_db(connection):
-    cursor = connection.cursor()
+            connection = connect(db_name, usr, pwd, host, port)
 
 def drop_db(connection):
+    '''Wipes the database clean
+    
+    Warning
+    -------
+    DO NOT USE THIS FUNCTION UNLESS YOU WANT TO COMPLETELY NUKE THE ENTIRE DATABASE
+    
+    
+    Parameters
+    ----------
+    connection : psycopg2.connection
+        connection to database
+    '''
     execute_query(connection, 'DROP TABLE GAMES CASCADE')
     execute_query(connection, 'DROP TABLE DEVELOPERS CASCADE')
     execute_query(connection, 'DROP TABLE GENRES CASCADE')
     execute_query(connection, 'DROP TABLE TAGS CASCADE')
     execute_query(connection, 'DROP TABLE PUBLISHERS CASCADE')
-
-
-def test():
-    appids = get_top_games()
-    print('got games')
-    connection = connect('steam', 'postgres', '$Jackface1!', '127.0.0.1', '5432')
-    #drop_db(connection)
-    #init_db(connection)
-    #put_in_db(connection, appids)
-    appids = []
-    with open('gets.csv') as f:
-        for line in f.readlines():
-            if line.strip() != ',id':
-                line = line.split(',')[1].strip()
-                #print(line)
-                cursor = connection.cursor()
-                cursor.execute(f"select appid from games where appid='{line}'")
-                if not cursor.fetchone():
-                    appids.append(line)
-            else:
-                print('trigger')
-
-    get_app_details(appids)
-    put_in_db(connection, appids)
-    #csv_dump(connection)
-
-def test2():
-    # FIXME: CAN HAVE AN ISSUE WHERE OUR ORIGINAL CONNECTION IS NO LONGER VALID BUT WE DON'T KNOW ABOUT IT
-    connection = connect('steam', 'postgres', '$Jackface1!', '127.0.0.1', '5432')
-    #drop_db(connection)
-    #init_db(connection)
-
-    appids = None
-    for x, y, filenames in os.walk('./tmp'):
-        appids = [fname.split('.')[0] for fname in filenames]
-
-    drop_db(connection)
-    init_db(connection)
-    put_in_db(connection, appids)
-
-if __name__ == '__main__':
-    test2()

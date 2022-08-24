@@ -258,6 +258,7 @@ def get_user_recs(steamid):
     # Make the recommendations
     try:
         print('making predictions')
+        # TODO: FILTER OUT RECOMMENDATIONS FOR GAMES WE ALREADY OWN
         n_users, n_items = train_interactions.shape
         scores = pd.Series(solver.predict(uid, np.arange(n_items)))
 
