@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Grid, Button, Typography, TextField } from "@material-ui/core";
+import { BrowserRouter as Router, Routes, Route, useNavigate, Link, Navigate } from 'react-router-dom';
+import DisplayPage from './DisplayPage'
 
 export default function LoginPage(props) {
     /* The login page will either take a username and password which we can use
@@ -11,8 +13,12 @@ export default function LoginPage(props) {
     const [twoFactorAuth, setTwoFactorAuth] = useState('');
 
     const [btnDisabled, setBtnDisabled] = useState(false);
+
+    const navigate = useNavigate();
     // NOTE: UNUSED
     const [error, setError] = useState('');
+
+    let enterPressed = false;
 
     const handleUsernameTextFieldChange = (e) => {
         setUsername(e.target.value);
@@ -37,7 +43,9 @@ export default function LoginPage(props) {
         // If the user entered a steamID we will just send that to the backend 
         // Else we need to authenticate the username and password to get the user's steamID
         let usrLib = null;
+        console.log('steamid: ' + steamID);
         if (steamID !== '') {
+            console.log('got an id')
             const requestOptions = {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
@@ -56,6 +64,7 @@ export default function LoginPage(props) {
             }).then(data => usrLib = data)
             .catch(myError => myError.text().then(err => alert(err)));
         } else {
+            console.log('no id found')
             const requestOptions = {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
@@ -81,9 +90,14 @@ export default function LoginPage(props) {
 
         // Reenable button
         setBtnDisabled(false);
+
+        // Redirect to games recs page (hopefully?)
+        navigate('/recs', {state: {games: games}});    
     }
-    
+
     return (
+        <div>
+
         <Grid container spacing={1} align='center'>
             <Grid item xs={12} >
                 <Typography variant='h6' component='h6'>
@@ -137,5 +151,6 @@ export default function LoginPage(props) {
                 </Button>
             </Grid>
         </Grid>
+        </div>
     );
 }
